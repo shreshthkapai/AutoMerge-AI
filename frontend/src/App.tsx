@@ -7,9 +7,8 @@ const App: React.FC = () => {
   const [message, setMessage] = useState<string>('')
   const [username, setUsername] = useState<string>('Guest')
   const [repos, setRepos] = useState<{ name: string; full_name: string }[]>([])
-  const [userId, setUserId] = useState<number>(0) // Add userId to state
+  const [userId, setUserId] = useState<number>(0)
 
-  // Get user_id from URL query params or localStorage
   const getUserId = () => {
     const params = new URLSearchParams(window.location.search)
     const idFromUrl = parseInt(params.get('user_id') || '0', 10)
@@ -21,7 +20,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const id = getUserId()
-    setUserId(id) // Set userId state
+    setUserId(id)
 
     const fetchMessage = async () => {
       try {
@@ -56,18 +55,36 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('user_id')
-    setUserId(0) // Reset userId
+    setUserId(0)
     setUsername('Guest')
     setRepos([])
+  }
+
+  const handleLogin = () => {
+    window.location.href = 'http://localhost:8000/api/auth/github/login'
   }
 
   return (
     <div className="min-h-screen flex flex-col items-center py-8 px-4">
       <Welcome message={message} username={username} />
-      <RepoList repos={repos} />
-      <button onClick={handleLogout} className="mt-4 px-4 py-2 bg-red-500 text-white rounded">
-        Logout
-      </button>
+      {userId === 0 ? (
+        <button
+          onClick={handleLogin}
+          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
+        >
+          Login with GitHub
+        </button>
+      ) : (
+        <>
+          <RepoList repos={repos} />
+          <button
+            onClick={handleLogout}
+            className="mt-4 px-4 py-2 bg-red-500 text-white rounded"
+          >
+            Logout
+          </button>
+        </>
+      )}
     </div>
   )
 }

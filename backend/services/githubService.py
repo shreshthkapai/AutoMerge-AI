@@ -43,3 +43,4 @@ async def get_user_info(token: str):
         response = await client.get(url, headers=headers)
         response.raise_for_status()
         return response.json().get("login")
+    
