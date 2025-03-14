@@ -20,10 +20,11 @@ async def list_repos(db: Session = Depends(get_db), user_id: int = Depends(get_u
     repos = await get_user_repos(user.github_access_token)
     return [{"name": repo["name"], "full_name": repo["full_name"]} for repo in repos["repos"]]
 
-@router.get("/repos/{repo_full_name}/issues")
-async def list_issues(repo_full_name: str, db: Session = Depends(get_db), user_id: int = Depends(get_user_id)):
+@router.get("/repos/issues")
+async def list_issues(repo_owner: str, repo_name: str, db: Session = Depends(get_db), user_id: int = Depends(get_user_id)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    repo_full_name = f"{repo_owner}/{repo_name}"
     issues = await get_repo_issues(user.github_access_token, repo_full_name)
     return [{"id": issue["id"], "title": issue["title"], "number": issue["number"]} for issue in issues]
