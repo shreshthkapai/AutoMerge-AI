@@ -53,11 +53,22 @@ async def get_user_repos(access_token: str) -> dict:
     return {"username": username, "repos": repos}
 
 async def get_repo_issues(access_token: str, repo_full_name: str) -> list:
+    url = f"https://api.github.com/repos/{repo_full_name}/issues"
+    print(f"Requesting issues from: {url}")
+    
     response = requests.get(
-        f"https://api.github.com/repos/{repo_full_name}/issues",
+        url,
         headers={"Authorization": f"Bearer {access_token}"}
     )
+    
+    print(f"Response status: {response.status_code}")
+    
     if response.status_code != 200:
-        raise HTTPException(status_code=response.status_code, detail="Failed to fetch issues")
+        error_message = f"Failed to fetch issues: {response.text}"
+        print(error_message)
+        raise HTTPException(status_code=response.status_code, detail=error_message)
+    
     issues = response.json()
+    print(f"Found {len(issues)} issues")
+    
     return issues
