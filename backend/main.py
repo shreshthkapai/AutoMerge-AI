@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from api.auth.github import router as auth_router
+from api.github.routes import router as github_router
 from config.db import Base, engine
 
 app = FastAPI(
@@ -13,6 +14,7 @@ Base.metadata.create_all(bind=engine)
 
 # Include authentication routes
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+app.include_router(github_router, prefix="/api/github", tags=["github"])
 
 @app.get("/api/")
 async def root():
