@@ -7,7 +7,7 @@ from services.githubService import get_user_repos, get_repo_issues
 router = APIRouter()
 
 # Dependency to get user_id from query param
-async def get_user_id(user_id: int = Depends(lambda: 0)):
+async def get_user_id(user_id: int = 0):  # Default to 0, check below
     if user_id == 0:
         raise HTTPException(status_code=401, detail="Unauthorized - Please provide user_id")
     return user_id

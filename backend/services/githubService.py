@@ -1,5 +1,5 @@
 import requests
-from fastapi import HTTPException  # Added import
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from models.user import User
 
@@ -32,15 +32,25 @@ async def store_access_token(db: Session, access_token: str) -> User:
         user.github_access_token = access_token
     db.commit()
     db.refresh(user)
+    print(f"Saved user: {user.id}")
     return user
 
 async def get_user_repos(access_token: str) -> dict:
-    response = requests.get(
+    # Get user info for username
+    user_response = requests.get(
+        "https://api.github.com/user",
+        headers={"Authorization": f"Bearer {access_token}"}
+    )
+    user_data = user_response.json()
+    username = user_data["login"]  # Your actual GitHub username (e.g., "shreshthkapai")
+
+    # Get repos
+    repo_response = requests.get(
         "https://api.github.com/user/repos",
         headers={"Authorization": f"Bearer {access_token}"}
     )
-    repos = response.json()
-    return {"username": repos[0]["owner"]["login"] if repos else "Unknown", "repos": repos}
+    repos = repo_response.json()
+    return {"username": username, "repos": repos}
 
 async def get_repo_issues(access_token: str, repo_full_name: str) -> list:
     response = requests.get(
