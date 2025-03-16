@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion } from 'framer-motion';
+import { generateFix, submitFix, deleteFix } from '../services/issueService';
 
 interface Issue {
   id: number;
@@ -38,6 +39,10 @@ export const IssueDetail: React.FC<IssueDetailProps> = ({ userId }) => {
   const [fixes, setFixes] = useState<Fix[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [generatingFix, setGeneratingFix] = useState<boolean>(false);
+  const [submittingFix, setSubmittingFix] = useState<number | null>(null);
+  const [submissionMessage, setSubmissionMessage] = useState<string>('');
+  const [showSubmissionForm, setShowSubmissionForm] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchIssueData = async () => {
@@ -79,6 +84,46 @@ export const IssueDetail: React.FC<IssueDetailProps> = ({ userId }) => {
 
   const handleBackClick = () => {
     navigate(-1);
+  };
+
+  const handleGenerateFix = async () => {
+    if (!issue) return;
+    
+    setGeneratingFix(true);
+    try {
+      const newFix = await generateFix(userId, issue.id);
+      setFixes([...fixes, newFix]);
+    } catch (err) {
+      console.error('Error generating fix:', err);
+      setError('Failed to generate fix. Please try again.');
+    } finally {
+      setGeneratingFix(false);
+    }
+  };
+
+  const handleSubmitFix = async (fixId: number) => {
+    setSubmittingFix(fixId);
+    try {
+      const updatedFix = await submitFix(userId, fixId, submissionMessage);
+      setFixes(fixes.map(fix => fix.id === fixId ? updatedFix : fix));
+      setShowSubmissionForm(null);
+      setSubmissionMessage('');
+    } catch (err) {
+      console.error('Error submitting fix:', err);
+      setError('Failed to submit fix. Please try again.');
+    } finally {
+      setSubmittingFix(null);
+    }
+  };
+
+  const handleDeleteFix = async (fixId: number) => {
+    try {
+      await deleteFix(userId, fixId);
+      setFixes(fixes.filter(fix => fix.id !== fixId));
+    } catch (err) {
+      console.error('Error deleting fix:', err);
+      setError('Failed to delete fix. Please try again.');
+    }
   };
 
   if (loading) {
@@ -173,10 +218,13 @@ export const IssueDetail: React.FC<IssueDetailProps> = ({ userId }) => {
           <h2 className="text-xl font-semibold text-white">AI Generated Fixes</h2>
           {issue.is_ai_fixable && (
             <button 
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              onClick={() => {/* Logic for generating an AI fix */}}
+              className={`px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 ${
+                generatingFix ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+              onClick={handleGenerateFix}
+              disabled={generatingFix}
             >
-              Generate New Fix
+              {generatingFix ? 'Generating...' : 'Generate New Fix'}
             </button>
           )}
         </div>
@@ -186,10 +234,13 @@ export const IssueDetail: React.FC<IssueDetailProps> = ({ userId }) => {
             <p className="text-gray-400">No fixes generated yet.</p>
             {issue.is_ai_fixable && (
               <button 
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                onClick={() => {/* Logic for generating an AI fix */}}
+                className={`px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 ${
+                  generatingFix ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+                onClick={handleGenerateFix}
+                disabled={generatingFix}
               >
-                Generate Fix
+                {generatingFix ? 'Generating...' : 'Generate Fix'}
               </button>
             )}
           </div>
@@ -245,19 +296,50 @@ export const IssueDetail: React.FC<IssueDetailProps> = ({ userId }) => {
                     )}
                   </div>
                 ) : (
-                  <div className="mt-3 flex gap-3">
-                    <button 
-                      className="px-3 py-1.5 bg-green-700 text-white text-sm rounded-md hover:bg-green-800"
-                      onClick={() => {/* Submit fix logic */}}
-                    >
-                      Submit to GitHub
-                    </button>
-                    <button 
-                      className="px-3 py-1.5 bg-red-700 text-white text-sm rounded-md hover:bg-red-800"
-                      onClick={() => {/* Delete fix logic */}}
-                    >
-                      Delete
-                    </button>
+                  <div className="mt-3">
+                    {showSubmissionForm === fix.id ? (
+                      <div className="mt-3 border border-[#30363d] rounded-md p-3">
+                        <textarea
+                          value={submissionMessage}
+                          onChange={(e) => setSubmissionMessage(e.target.value)}
+                          placeholder="Enter a submission message for this PR..."
+                          className="w-full p-2 bg-[#0d1117] border border-[#30363d] rounded-md text-white mb-3"
+                          rows={3}
+                        />
+                        <div className="flex gap-2">
+                          <button 
+                            className={`px-3 py-1.5 bg-green-700 text-white text-sm rounded-md hover:bg-green-800 ${
+                              submittingFix === fix.id ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                            onClick={() => handleSubmitFix(fix.id)}
+                            disabled={submittingFix === fix.id}
+                          >
+                            {submittingFix === fix.id ? 'Submitting...' : 'Submit PR'}
+                          </button>
+                          <button 
+                            className="px-3 py-1.5 bg-[#21262d] text-white text-sm rounded-md hover:bg-[#30363d]"
+                            onClick={() => setShowSubmissionForm(null)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-3">
+                        <button 
+                          className="px-3 py-1.5 bg-green-700 text-white text-sm rounded-md hover:bg-green-800"
+                          onClick={() => setShowSubmissionForm(fix.id)}
+                        >
+                          Submit to GitHub
+                        </button>
+                        <button 
+                          className="px-3 py-1.5 bg-red-700 text-white text-sm rounded-md hover:bg-red-800"
+                          onClick={() => handleDeleteFix(fix.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </motion.div>
