@@ -2,6 +2,9 @@ import requests
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from models.user import User
+import logging
+
+logger = logging.getLogger(__name__)
 
 async def exchange_code_for_token(code: str) -> str:
     from config.githubApp import GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_REDIRECT_URI
@@ -32,7 +35,7 @@ async def store_access_token(db: Session, access_token: str) -> User:
         user.github_access_token = access_token
     db.commit()
     db.refresh(user)
-    print(f"Saved user: {user.id}")
+    logger.info(f"Saved user: {user.id}")
     return user
 
 async def get_user_repos(access_token: str) -> dict:
@@ -52,23 +55,23 @@ async def get_user_repos(access_token: str) -> dict:
     repos = repo_response.json()
     return {"username": username, "repos": repos}
 
-async def get_repo_issues(access_token: str, repo_full_name: str) -> list:
-    url = f"https://api.github.com/repos/{repo_full_name}/issues"
-    print(f"Requesting issues from: {url}")
+async def get_repo_issues(access_token: str, repo_full_name: str, page: int = 1, per_page: int = 30) -> list:
+    url = f"https://api.github.com/repos/{repo_full_name}/issues?page={page}&per_page={per_page}"
+    logger.info(f"Requesting issues from: {url}")
     
     response = requests.get(
         url,
         headers={"Authorization": f"Bearer {access_token}"}
     )
     
-    print(f"Response status: {response.status_code}")
+    logger.info(f"Response status: {response.status_code}")
     
     if response.status_code != 200:
         error_message = f"Failed to fetch issues: {response.text}"
-        print(error_message)
+        logger.info(error_message)
         raise HTTPException(status_code=response.status_code, detail=error_message)
     
     issues = response.json()
-    print(f"Found {len(issues)} issues")
+    logger.info(f"Found {len(issues)} issues")
     
     return issues
