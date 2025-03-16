@@ -1,6 +1,10 @@
+// frontend/src/App.tsx
 import { useEffect, useState } from 'react'
 import { Welcome } from './components/Welcome'
 import { RepoList } from './components/RepoList'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import IssueList from './pages/IssueList'
+import IssueDetail from './pages/IssueDetail'
 import axios from 'axios'
 
 const App: React.FC = () => {
@@ -65,27 +69,38 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center py-8 px-4">
-      <Welcome message={message} username={username} />
-      {userId === 0 ? (
-        <button
-          onClick={handleLogin}
-          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
-        >
-          Login with GitHub
-        </button>
-      ) : (
-        <>
-          <RepoList repos={repos} />
+    <Router>
+      <div className="min-h-screen flex flex-col items-center py-8 px-4">
+        <Welcome message={message} username={username} />
+        
+        {userId === 0 ? (
           <button
-            onClick={handleLogout}
-            className="mt-4 px-4 py-2 bg-red-500 text-white rounded"
+            onClick={handleLogin}
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
           >
-            Logout
+            Login with GitHub
           </button>
-        </>
-      )}
-    </div>
+        ) : (
+          <Routes>
+            <Route path="/" element={
+              <>
+                <RepoList repos={repos} />
+                <button
+                  onClick={handleLogout}
+                  className="mt-4 px-4 py-2 bg-red-500 text-white rounded"
+                >
+                  Logout
+                </button>
+              </>
+            } />
+            <Route path="/issues" element={<IssueList userId={userId} />} />
+            <Route path="/issues/:issueId" element={<IssueDetail userId={userId} />} />
+            <Route path="/repos/:repoName/issues" element={<IssueList userId={userId} />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        )}
+      </div>
+    </Router>
   )
 }
 
