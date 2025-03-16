@@ -13,97 +13,14 @@ async def get_user_id(user_id: int = 0):  # Default to 0, check below
         raise HTTPException(status_code=401, detail="Unauthorized - Please provide user_id")
     return user_id
 
-@router.get("/repos/issues")
-async def list_issues(
-    repo_name: str = Query(..., description="Repository name"),
-    include_original: bool = Query(False, description="Include issues from original repository if this is a fork"),
-    db: Session = Depends(get_db), 
-    user_id: int = Depends(get_user_id)
-):
+@router.get("/repos")
+async def list_repos(db: Session = Depends(get_db), user_id: int = Depends(get_user_id)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
-    all_issues = []
-    
-    # Get all user repos to find the one with matching name
-    try:
-        repos_response = requests.get(
-            "https://api.github.com/user/repos?type=all",
-            headers={"Authorization": f"Bearer {user.github_access_token}"}
-        )
-        repos = repos_response.json()
-        
-        # Find the repo with matching name
-        matching_repo = None
-        for repo in repos:
-            if repo.get("name") == repo_name:
-                matching_repo = repo
-                break
-        
-        if not matching_repo:
-            raise HTTPException(status_code=404, detail=f"Repository '{repo_name}' not found")
-        
-        # Get issues from the specified repository
-        repo_full_name = matching_repo["full_name"]
-        try:
-            issues = await get_repo_issues(user.github_access_token, repo_full_name)
-            for issue in issues:
-                issue["repository"] = {
-                    "name": matching_repo["name"],
-                    "full_name": repo_full_name,
-                    "is_fork": matching_repo.get("fork", False)
-                }
-            all_issues.extend(issues)
-        except Exception as e:
-            print(f"Error fetching issues for {repo_full_name}: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Error fetching issues for {repo_full_name}: {str(e)}")
-        
-        # If it's a fork and we want to include original repo issues
-        if include_original and matching_repo.get("fork", False):
-            # Get detailed fork info to find the parent/source repo
-            try:
-                fork_detail_response = requests.get(
-                    f"https://api.github.com/repos/{repo_full_name}",
-                    headers={"Authorization": f"Bearer {user.github_access_token}"}
-                )
-                fork_detail = fork_detail_response.json()
-                
-                # Check if parent/source info is available
-                if "parent" in fork_detail and "full_name" in fork_detail["parent"]:
-                    parent_full_name = fork_detail["parent"]["full_name"]
-                    
-                    try:
-                        parent_issues = await get_repo_issues(user.github_access_token, parent_full_name)
-                        for issue in parent_issues:
-                            issue["repository"] = {
-                                "name": fork_detail["parent"]["name"],
-                                "full_name": parent_full_name,
-                                "is_fork": False,
-                                "is_parent_of_fork": True
-                            }
-                        all_issues.extend(parent_issues)
-                    except Exception as e:
-                        print(f"Error fetching issues for parent repo {parent_full_name}: {str(e)}")
-            except Exception as e:
-                print(f"Error fetching fork details for {repo_full_name}: {str(e)}")
-        
-        return [
-            {
-                "id": issue["id"], 
-                "title": issue["title"], 
-                "number": issue["number"],
-                "repository": issue["repository"],
-                "html_url": issue.get("html_url", ""),
-                "state": issue.get("state", ""),
-                "created_at": issue.get("created_at", "")
-            } 
-            for issue in all_issues
-        ]
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching repositories: {str(e)}")
-    
+    repos = await get_user_repos(user.github_access_token)
+    return [{"name": repo["name"], "full_name": repo["full_name"]} for repo in repos["repos"]]
+
 @router.get("/repos/issues")
 async def list_issues(
     repo_owner: str = Query(..., description="Repository owner"),
@@ -118,6 +35,64 @@ async def list_issues(
     repo_full_name = f"{repo_owner}/{repo_name}"
     issues = await get_repo_issues(user.github_access_token, repo_full_name)
     return [{"id": issue["id"], "title": issue["title"], "number": issue["number"]} for issue in issues]
+
+@router.get("/issues/{issue_id}")
+async def get_issue_detail(
+    issue_id: int,
+    repo_owner: str = Query(..., description="Repository owner"),
+    repo_name: str = Query(..., description="Repository name"),
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_user_id)
+):
+    """
+    Get detailed information about a specific GitHub issue
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    repo_full_name = f"{repo_owner}/{repo_name}"
+    
+    # Make request to GitHub API to get issue details
+    try:
+        response = requests.get(
+            f"https://api.github.com/repos/{repo_full_name}/issues/{issue_id}",
+            headers={"Authorization": f"Bearer {user.github_access_token}"}
+        )
+        
+        if response.status_code != 200:
+            error_message = f"Failed to fetch issue: {response.text}"
+            raise HTTPException(status_code=response.status_code, detail=error_message)
+        
+        issue = response.json()
+        
+        # Format the response to include important issue details
+        return {
+            "id": issue["id"],
+            "number": issue["number"],
+            "title": issue["title"],
+            "body": issue["body"],
+            "state": issue["state"],
+            "html_url": issue["html_url"],
+            "created_at": issue["created_at"],
+            "updated_at": issue["updated_at"],
+            "user": {
+                "login": issue["user"]["login"],
+                "avatar_url": issue["user"]["avatar_url"],
+                "html_url": issue["user"]["html_url"]
+            },
+            "labels": [
+                {"name": label["name"], "color": label["color"]}
+                for label in issue.get("labels", [])
+            ],
+            "assignees": [
+                {"login": assignee["login"], "avatar_url": assignee["avatar_url"]}
+                for assignee in issue.get("assignees", [])
+            ],
+            "comments": issue.get("comments", 0)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching issue details: {str(e)}")
 
 @router.get("/repos/all-issues")
 async def list_all_issues(
