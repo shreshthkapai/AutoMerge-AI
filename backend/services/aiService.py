@@ -2,7 +2,65 @@ import requests
 from fastapi import HTTPException
 from models.fix import Fix
 from models.issue import Issue
+from models.user import User
 from datetime import datetime
+import json
+import re
+
+async def is_issue_ai_fixable(issue):
+    """
+    Determine if an issue is fixable by AI based on:
+    1. Has 'bug' or 'ai-fixable' labels
+    2. Contains error messages or stack traces
+    3. Has clear reproduction steps
+    """
+    # Check labels
+    labels = []
+    if issue.labels:
+        try:
+            labels = json.loads(issue.labels)
+        except:
+            pass
+    
+    if "bug" in labels or "ai-fixable" in labels:
+        return True
+        
+    # Check content for error patterns if description exists
+    if issue.description:
+        # Check for stack traces or error messages
+        error_patterns = [
+            r"error:",
+            r"exception:",
+            r"traceback",
+            r"fail(ed|ure|ing)?",
+            r"steps to reproduce"
+        ]
+        
+        for pattern in error_patterns:
+            if re.search(pattern, issue.description, re.IGNORECASE):
+                return True
+    
+    return False
+
+async def update_ai_fixable_status(db, user_id=None):
+    """Update is_ai_fixable status for all issues or for a specific user"""
+    query = db.query(Issue)
+    if user_id:
+        query = query.filter(Issue.user_id == user_id)
+    
+    issues = query.all()
+    updated_count = 0
+    
+    for issue in issues:
+        fixable = await is_issue_ai_fixable(issue)
+        if issue.is_ai_fixable != fixable:
+            issue.is_ai_fixable = fixable
+            updated_count += 1
+    
+    if updated_count > 0:
+        db.commit()
+    
+    return updated_count
 
 async def generate_fix_for_issue(db, issue_id, user_id):
     """
@@ -69,6 +127,11 @@ async def submit_fix_to_github(db, fix_id, user_id, submission_message):
     issue = db.query(Issue).filter(Issue.id == fix.issue_id, Issue.user_id == user_id).first()
     if not issue:
         raise HTTPException(status_code=404, detail="Issue not found or not owned by user")
+    
+    # Fetch the user to get GitHub token
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
     
     # In a real implementation, you would:
     # 1. Create a new branch

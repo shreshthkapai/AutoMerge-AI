@@ -1,12 +1,13 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from api.auth.github import router as github_auth_router
 from api.github.routes import router as github_router
 from api.issues.routes import router as issues_router
 from api.webhook.routes import router as webhook_router
-from config.db import Base, engine
+from config.db import Base, engine, SessionLocal
+from services.aiService import update_ai_fixable_status
 import logging
-import os  # Added for os.getenv
+import os
 
 logging.basicConfig(
     level=logging.INFO,
@@ -14,7 +15,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Add this function after imports
 def validate_env():
     required_vars = [
         "DATABASE_URL", 
@@ -28,15 +28,31 @@ def validate_env():
     if missing:
         raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
 
+async def startup_ai_status_update():
+    """Update AI-fixable status for all issues on startup"""
+    db = SessionLocal()
+    try:
+        logger.info("Running initial AI-fixable status update")
+        await update_ai_fixable_status(db)
+        logger.info("AI-fixable status update completed")
+    finally:
+        db.close()
+
 # Call this before creating the app
 validate_env()
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title="AutoMerge AI")
 
 # Configure CORS
+origins = [
+    "http://localhost:5173",  # Vite default
+    "http://localhost:3000",  # Common React port
+    os.getenv("FRONTEND_URL", ""),  # Production frontend URL
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, you should set this to your frontend URL
+    allow_origins=origins if origins[2] else ["*"],  # Use specific origins if configured, otherwise allow all
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,6 +73,11 @@ app.include_router(main_router)
 @app.get("/api/")
 async def root():
     return {"message": "Welcome to AutoMerge AI"}
+
+@app.on_event("startup")
+async def startup_event(background_tasks: BackgroundTasks):
+    # Run AI-fixable status update in background
+    background_tasks.add_task(startup_ai_status_update)
 
 if __name__ == "__main__":
     import uvicorn

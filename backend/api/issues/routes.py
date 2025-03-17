@@ -137,6 +137,21 @@ async def list_issues(
 
     return issues
 
+@router.post("/refresh-ai-status")
+async def refresh_ai_fixable_status(
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_user_id)
+):
+    """Refresh AI-fixable status for all user's issues"""
+    from services.aiService import update_ai_fixable_status
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    updated_count = await update_ai_fixable_status(db, user_id)
+    return {"message": f"Updated {updated_count} issues"}
+
 @router.get("/issues/{issue_id}", response_model=IssueResponse)
 async def get_issue(
     issue_id: int,
