@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import { Link } from 'react-router-dom'
 
 interface Repo {
   name: string
@@ -28,8 +29,10 @@ export const RepoList: React.FC<RepoListProps> = ({ repos }) => {
               transition={{ duration: 0.5, delay: index * 0.1 }}
               className="bg-[#161b22] p-4 rounded-md border border-[#30363d] hover:bg-[#21262d] transition-colors duration-200"
             >
-              <span className="text-gray-100 font-medium">{repo.name}</span>
-              <span className="text-gray-400 text-sm block">{repo.full_name}</span>
+              <Link to={`/repos/${encodeURIComponent(repo.full_name)}/issues`} className="block">
+                <span className="text-gray-100 font-medium">{repo.name}</span>
+                <span className="text-gray-400 text-sm block">{repo.full_name}</span>
+              </Link>
             </motion.li>
           ))
         ) : (

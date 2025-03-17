@@ -126,6 +126,21 @@ export const IssueDetail: React.FC<IssueDetailProps> = ({ userId }) => {
     }
   };
 
+  const handleRequestAIFix = async () => {
+    if (!issue) return;
+    
+    setGeneratingFix(true);
+    try {
+      const newFix = await generateFix(userId, issue.id);
+      setFixes([...fixes, newFix]);
+    } catch (err) {
+      console.error('Error generating fix:', err);
+      setError('Failed to generate fix. Please try again.');
+    } finally {
+      setGeneratingFix(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="w-full max-w-4xl mx-auto p-4 text-center">
@@ -221,10 +236,10 @@ export const IssueDetail: React.FC<IssueDetailProps> = ({ userId }) => {
               className={`px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 ${
                 generatingFix ? 'opacity-50 cursor-not-allowed' : ''
               }`}
-              onClick={handleGenerateFix}
+              onClick={handleRequestAIFix}
               disabled={generatingFix}
             >
-              {generatingFix ? 'Generating...' : 'Generate New Fix'}
+              {generatingFix ? 'Generating...' : 'Request AI Fix'}
             </button>
           )}
         </div>

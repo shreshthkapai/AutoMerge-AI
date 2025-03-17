@@ -5,13 +5,16 @@ import { RepoList } from './components/RepoList'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import IssueList from './pages/IssueList'
 import IssueDetail from './pages/IssueDetail'
-import axios from 'axios'
+import { fetchUserInfo, fetchUserRepositories } from './services/apiService'
+import Header from './components/Header'
 
 const App: React.FC = () => {
-  const [message, setMessage] = useState<string>('')
+  const [message, setMessage] = useState<string>('Welcome to AutoMerge AI')
   const [username, setUsername] = useState<string>('Guest')
   const [repos, setRepos] = useState<{ name: string; full_name: string }[]>([])
   const [userId, setUserId] = useState<number>(0)
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
 
   const getUserId = () => {
     const params = new URLSearchParams(window.location.search)
@@ -26,35 +29,36 @@ const App: React.FC = () => {
     const id = getUserId()
     setUserId(id)
 
-    const fetchMessage = async () => {
-      try {
-        const response = await axios.get('/api/')
-        setMessage(response.data.message)
-      } catch (error) {
-        console.error('Error fetching message:', error)
-        setMessage('Welcome to AutoMerge AI!')
-      }
-    }
-
-    const fetchRepos = async () => {
+    const fetchData = async () => {
       if (id === 0) {
         setUsername('Guest')
         setRepos([])
+        setLoading(false)
         return
       }
+
+      setLoading(true)
       try {
-        const response = await axios.get(`/api/auth/repos/${id}`)
-        setUsername(response.data.username || 'Guest')
-        setRepos(response.data.repos || [])
-      } catch (error) {
-        console.error('Error fetching repos:', error)
+        // Fetch user info
+        const userInfo = await fetchUserInfo(id)
+        setUsername(userInfo.username || 'Guest')
+        
+        // Fetch repositories
+        const repositories = await fetchUserRepositories(id)
+        setRepos(repositories)
+        
+        setError(null)
+      } catch (err) {
+        console.error('Error fetching data:', err)
+        setError('Failed to load user data. Please try logging in again.')
         setUsername('Guest')
         setRepos([])
+      } finally {
+        setLoading(false)
       }
     }
 
-    fetchMessage()
-    fetchRepos()
+    fetchData()
   }, [])
 
   const handleLogout = () => {
@@ -65,40 +69,49 @@ const App: React.FC = () => {
   }
 
   const handleLogin = () => {
-    window.location.href = 'http://localhost:8000/api/auth/github/login'
+    window.location.href = '/api/auth/github/login'
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-400">Loading...</p>
+      </div>
+    )
   }
 
   return (
     <Router>
-      <div className="min-h-screen flex flex-col items-center py-8 px-4">
-        <Welcome message={message} username={username} />
+      <div className="min-h-screen flex flex-col">
+        {userId !== 0 && <Header username={username} onLogout={handleLogout} />}
         
-        {userId === 0 ? (
-          <button
-            onClick={handleLogin}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
-          >
-            Login with GitHub
-          </button>
-        ) : (
-          <Routes>
-            <Route path="/" element={
-              <>
-                <RepoList repos={repos} />
-                <button
-                  onClick={handleLogout}
-                  className="mt-4 px-4 py-2 bg-red-500 text-white rounded"
-                >
-                  Logout
-                </button>
-              </>
-            } />
-            <Route path="/issues" element={<IssueList userId={userId} />} />
-            <Route path="/issues/:issueId" element={<IssueDetail userId={userId} />} />
-            <Route path="/repos/:repoName/issues" element={<IssueList userId={userId} />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        )}
+        <div className="flex-grow flex flex-col items-center py-8 px-4">
+          {userId === 0 ? (
+            <>
+              <Welcome message={message} username={username} />
+              <button
+                onClick={handleLogin}
+                className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Login with GitHub
+              </button>
+            </>
+          ) : (
+            <Routes>
+              <Route path="/" element={<RepoList repos={repos} />} />
+              <Route path="/issues" element={<IssueList userId={userId} />} />
+              <Route path="/issues/:issueId" element={<IssueDetail userId={userId} />} />
+              <Route path="/repos/:owner/:repoName/issues" element={<IssueList userId={userId} />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          )}
+          
+          {error && (
+            <div className="mt-4 p-4 bg-red-900 text-red-100 rounded-md">
+              {error}
+            </div>
+          )}
+        </div>
       </div>
     </Router>
   )

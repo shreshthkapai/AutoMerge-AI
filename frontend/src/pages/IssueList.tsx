@@ -1,26 +1,16 @@
+// frontend/src/pages/IssueList.tsx
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
-
-interface Issue {
-  id: number;
-  github_issue_id: number;
-  title: string;
-  repo_full_name: string;
-  state: string;
-  html_url: string;
-  created_at: string;
-  is_ai_fixable: boolean;
-  labels: string[];
-}
+import { Link, useParams } from 'react-router-dom';
+import { fetchIssues, Issue } from '../services/apiService';
+import AIFixableBadge from '../components/AIFixableBadge';
 
 interface IssueListProps {
   userId: number;
-  repoName?: string;
 }
 
-export const IssueList: React.FC<IssueListProps> = ({ userId, repoName }) => {
+export const IssueList: React.FC<IssueListProps> = ({ userId }) => {
+  const { owner, repoName } = useParams<{ owner: string; repoName: string }>();
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,20 +19,25 @@ export const IssueList: React.FC<IssueListProps> = ({ userId, repoName }) => {
   const [aiFixableOnly, setAiFixableOnly] = useState<boolean>(false);
 
   useEffect(() => {
-    const fetchIssues = async () => {
+    const fetchIssueData = async () => {
       if (!userId) return;
 
       setLoading(true);
       try {
-        const params: Record<string, any> = { user_id: userId };
+        const filters: {
+          repo_name?: string;
+          search?: string;
+          label?: string;
+          is_ai_fixable?: boolean;
+        } = {};
         
-        if (repoName) params.repo_name = repoName;
-        if (searchTerm) params.search = searchTerm;
-        if (labelFilter) params.label = labelFilter;
-        if (aiFixableOnly) params.is_ai_fixable = true;
+        if (owner && repoName) filters.repo_name = `${owner}/${repoName}`;
+        if (searchTerm) filters.search = searchTerm;
+        if (labelFilter) filters.label = labelFilter;
+        if (aiFixableOnly) filters.is_ai_fixable = true;
 
-        const response = await axios.get('/api/issues/issues', { params });
-        setIssues(response.data);
+        const issueData = await fetchIssues(userId, filters);
+        setIssues(issueData);
         setError(null);
       } catch (err) {
         console.error('Error fetching issues:', err);
@@ -53,12 +48,16 @@ export const IssueList: React.FC<IssueListProps> = ({ userId, repoName }) => {
       }
     };
 
-    fetchIssues();
-  }, [userId, repoName, searchTerm, labelFilter, aiFixableOnly]);
+    fetchIssueData();
+  }, [userId, owner, repoName, searchTerm, labelFilter, aiFixableOnly]);
 
-  // Debounce search function
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
+  // Format date function
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
   };
 
   return (
@@ -69,7 +68,7 @@ export const IssueList: React.FC<IssueListProps> = ({ userId, repoName }) => {
       className="w-full max-w-4xl mx-auto p-4"
     >
       <h1 className="text-2xl font-bold text-white mb-6">
-        {repoName ? `Issues for ${repoName}` : 'All Issues'}
+        {repoName ? `Issues for ${owner}/${repoName}` : 'All Issues'}
       </h1>
 
       {/* Search and Filters */}
@@ -78,7 +77,7 @@ export const IssueList: React.FC<IssueListProps> = ({ userId, repoName }) => {
           <input
             type="text"
             value={searchTerm}
-            onChange={handleSearchChange}
+            onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search issues..."
             className="px-4 py-2 bg-[#0d1117] border border-[#30363d] rounded-md text-white flex-1"
           />
@@ -141,7 +140,9 @@ export const IssueList: React.FC<IssueListProps> = ({ userId, repoName }) => {
                   </span>
                 </div>
                 
-                <p className="text-sm text-gray-400 mb-2">{issue.repo_full_name}</p>
+                <p className="text-sm text-gray-400 mb-2">
+                  {issue.repo_full_name} • Created on {formatDate(issue.created_at)}
+                </p>
                 
                 {issue.labels && issue.labels.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-3">
@@ -156,11 +157,7 @@ export const IssueList: React.FC<IssueListProps> = ({ userId, repoName }) => {
                   </div>
                 )}
                 
-                {issue.is_ai_fixable && (
-                  <span className="px-2 py-1 text-xs bg-blue-900 text-blue-300 rounded-full">
-                    AI-Fixable
-                  </span>
-                )}
+                <AIFixableBadge isAIFixable={issue.is_ai_fixable} />
               </Link>
             </motion.li>
           ))}

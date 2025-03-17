@@ -75,8 +75,10 @@ async def root():
     return {"message": "Welcome to AutoMerge AI"}
 
 @app.on_event("startup")
-async def startup_event(background_tasks: BackgroundTasks):
-    # Run AI-fixable status update in background
+async def startup_event():
+    # Create a background tasks object
+    background_tasks = BackgroundTasks()
+    # Add the AI-fixable status update task
     background_tasks.add_task(startup_ai_status_update)
 
 if __name__ == "__main__":
