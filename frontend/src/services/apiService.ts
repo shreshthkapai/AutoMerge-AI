@@ -45,7 +45,9 @@ export const fetchUserInfo = async (userId: number): Promise<User> => {
 export const fetchUserRepositories = async (userId: number): Promise<Repository[]> => {
   try {
     // This should match your actual backend endpoint for repositories
-    const response = await axios.get(`/api/auth/github/repos/${userId}`);
+    const response = await axios.get(`/api/github/repos`, {
+      params: { user_id: userId }
+    });
     return response.data.repos || [];
   } catch (error) {
     console.error('Error fetching repositories:', error);
@@ -73,8 +75,8 @@ export const fetchIssues = async (
 ): Promise<Issue[]> => {
   try {
     const params = { user_id: userId, ...filters };
-    // This should match your actual backend endpoint for issues
-    const response = await axios.get('/api/github/issues', { params });
+    // Updated to match your actual backend endpoint for issues
+    const response = await axios.get('/api/issues', { params });
     return response.data;
   } catch (error) {
     console.error('Error fetching issues:', error);
@@ -84,8 +86,8 @@ export const fetchIssues = async (
 
 export const fetchIssueDetails = async (userId: number, issueId: number): Promise<Issue> => {
   try {
-    // This should match your actual backend endpoint for issue details
-    const response = await axios.get(`/api/github/issues/${issueId}`, {
+    // Updated to match your actual backend endpoint for issue details
+    const response = await axios.get(`/api/issues/${issueId}`, {
       params: { user_id: userId }
     });
     return response.data;

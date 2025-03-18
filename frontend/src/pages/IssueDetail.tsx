@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { generateFix, submitFix, deleteFix } from '../services/issueService';
+import { fetchIssueDetails } from '../services/apiService';
 
 interface Issue {
   id: number;
@@ -50,14 +51,12 @@ export const IssueDetail: React.FC<IssueDetailProps> = ({ userId }) => {
 
       setLoading(true);
       try {
-        // Fetch issue details
-        const issueResponse = await axios.get(`/api/issues/issues/${issueId}`, {
-          params: { user_id: userId }
-        });
-        setIssue(issueResponse.data);
+        // Fetch issue details using the updated function
+        const issueResponse = await fetchIssueDetails(userId, parseInt(issueId));
+        setIssue(issueResponse);
 
-        // Fetch fixes for this issue
-        const fixesResponse = await axios.get(`/api/issues/issues/${issueId}/fixes`, {
+        // Fetch fixes for this issue with corrected endpoint
+        const fixesResponse = await axios.get(`/api/issues/${issueId}/fixes`, {
           params: { user_id: userId }
         });
         setFixes(fixesResponse.data);

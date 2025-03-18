@@ -11,14 +11,14 @@ export interface Fix {
 }
 
 export const generateFix = async (userId: number, issueId: number): Promise<Fix> => {
-  const response = await axios.post(`/api/issues/issues/${issueId}/generate-fix`, null, {
+  const response = await axios.post(`/api/issues/${issueId}/generate-fix`, null, {
     params: { user_id: userId }
   });
   return response.data;
 };
 
 export const submitFix = async (userId: number, fixId: number, submissionMessage: string): Promise<Fix> => {
-  const response = await axios.post(`/api/issues/fixes/${fixId}/submit`, 
+  const response = await axios.post(`/api/fixes/${fixId}/submit`, 
     { submission_message: submissionMessage },
     { params: { user_id: userId } }
   );
@@ -26,7 +26,7 @@ export const submitFix = async (userId: number, fixId: number, submissionMessage
 };
 
 export const deleteFix = async (userId: number, fixId: number): Promise<void> => {
-  await axios.delete(`/api/issues/fixes/${fixId}`, {
+  await axios.delete(`/api/fixes/${fixId}`, {
     params: { user_id: userId }
   });
 };
